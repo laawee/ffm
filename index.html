@@ -23,6 +23,7 @@
             background: #eee;
             border-radius: 10px;
             overflow: hidden;
+            margin: 10px 0;
         }
         #progress {
             width: 0%;
@@ -36,15 +37,18 @@
             margin-top: 20px;
             padding: 10px;
             background: #f5f5f5;
+            border-radius: 5px;
         }
         .timeline-item {
             margin-right: 10px;
             text-align: center;
+            flex-shrink: 0;
         }
         .timeline-item img {
             width: 100px;
             height: 100px;
             object-fit: cover;
+            border-radius: 5px;
         }
         #loading {
             position: fixed;
@@ -57,12 +61,38 @@
             border-radius: 10px;
             z-index: 1000;
         }
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f0f0f0;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #cccccc;
+        }
+        #downloadBtn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>视频编辑器</h1>
-    <div id="loading" style="display: none;">加载中...</div>
+    <div id="loading" style="display: none;">处理中，请稍候...</div>
     <div class="preview-window">
         <video id="previewVideo" controls></video>
     </div>
@@ -76,10 +106,8 @@
     <a id="downloadBtn" style="display: none;">下载视频</a>
     <div class="timeline" id="timeline"></div>
 </div>
-<!-- 使用0.9.8版本替代最新版本 -->
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
 
-
+<script src="./ffmpeg.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     const loading = document.getElementById('loading');
@@ -91,20 +119,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const timeline = document.getElementById('timeline');
 
     let mediaData = [];
-
     const ffmpeg = FFmpeg.createFFmpeg({
         log: true,
-        corePath: 'https://unpkg.com/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js',
+        corePath: './ffmpeg-core.js',
         mainName: 'main',
-        printErr: (data) => console.log(data),
-        print: (data) => console.log(data)
+        logger: ({ message }) => {
+            console.log(message);
+        }
     });
 
     async function init() {
         loading.style.display = 'block';
         try {
             await ffmpeg.load();
-            status.textContent = 'FFmpeg 已加载';
+            status.textContent = 'FFmpeg 已就绪';
             
             const urlParams = new URLSearchParams(window.location.search);
             const sourceUrl = urlParams.get('source');
@@ -116,6 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 generateBtn.disabled = false;
             }
         } catch (error) {
+            console.error('初始化错误:', error);
             status.textContent = '初始化失败: ' + error.message;
         } finally {
             loading.style.display = 'none';
@@ -123,15 +152,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function fetchMediaData(url) {
-        const response = await fetch(url);
-        const data = await response.json();
-        return data.output;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('网络请求失败');
+            const data = await response.json();
+            return data.output;
+        } catch (error) {
+            console.error('获取媒体数据失败:', error);
+            throw error;
+        }
     }
 
     async function downloadFile(url) {
-        const response = await fetch(url);
-        const buffer = await response.arrayBuffer();
-        return new Uint8Array(buffer);
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('文件下载失败');
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+        } catch (error) {
+            console.error('下载文件失败:', error);
+            throw error;
+        }
     }
 
     function renderTimeline() {
@@ -151,9 +192,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         generateBtn.disabled = true;
         status.textContent = '正在生成视频...';
         progress.style.width = '0%';
+        loading.style.display = 'block';
 
         try {
             for (let i = 0; i < mediaData.length; i++) {
+                status.textContent = `处理第 ${i + 1}/${mediaData.length} 个片段`;
+                
                 const imageData = await downloadFile(mediaData[i].picture);
                 const audioData = await downloadFile(mediaData[i].audio);
 
@@ -174,9 +218,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     `output${i}.mp4`
                 );
 
-                progress.style.width = `${(i + 1) / mediaData.length * 100}%`;
+                progress.style.width = `${(i + 1) / mediaData.length * 50}%`;
             }
 
+            status.textContent = '合并视频片段...';
             const inputList = mediaData.map((_, i) => `file 'output${i}.mp4'`).join('\n');
             ffmpeg.FS('writeFile', 'concat_list.txt', inputList);
 
@@ -197,11 +242,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             downloadBtn.download = 'generated_video.mp4';
             downloadBtn.style.display = 'inline-block';
             status.textContent = '视频生成完成';
+            progress.style.width = '100%';
         } catch (error) {
             console.error('生成失败:', error);
             status.textContent = '生成失败: ' + error.message;
         } finally {
             generateBtn.disabled = false;
+            loading.style.display = 'none';
         }
     };
 
