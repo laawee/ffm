@@ -107,7 +107,7 @@
     <div class="timeline" id="timeline"></div>
 </div>
 
-<script src="./ffmpeg.min.js"></script>
+<script type="application/javascript" src="/ffmpeg.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     const loading = document.getElementById('loading');
@@ -119,19 +119,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const timeline = document.getElementById('timeline');
 
     let mediaData = [];
-    const ffmpeg = FFmpeg.createFFmpeg({
-        log: true,
-        corePath: './ffmpeg-core.js',
-        mainName: 'main',
-        logger: ({ message }) => {
-            console.log(message);
+
+    async function initFFmpeg() {
+        if (!window.createFFmpegCore) {
+            await new Promise((resolve) => {
+                const script = document.createElement('script');
+                script.src = '/ffmpeg-core.js';
+                script.onload = resolve;
+                document.body.appendChild(script);
+            });
         }
-    });
+
+        const ffmpeg = FFmpeg.createFFmpeg({
+            log: true,
+            corePath: '/ffmpeg-core.js',
+            mainName: 'createFFmpegCore',
+            wasmPath: '/ffmpeg-core.wasm'
+        });
+
+        await ffmpeg.load();
+        return ffmpeg;
+    }
 
     async function init() {
         loading.style.display = 'block';
         try {
-            await ffmpeg.load();
+            const ffmpeg = await initFFmpeg();
             status.textContent = 'FFmpeg 已就绪';
             
             const urlParams = new URLSearchParams(window.location.search);
@@ -195,6 +208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         loading.style.display = 'block';
 
         try {
+            const ffmpeg = await initFFmpeg();
+            
             for (let i = 0; i < mediaData.length; i++) {
                 status.textContent = `处理第 ${i + 1}/${mediaData.length} 个片段`;
                 
