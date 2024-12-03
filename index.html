@@ -76,8 +76,10 @@
     <a id="downloadBtn" style="display: none;">下载视频</a>
     <div class="timeline" id="timeline"></div>
 </div>
+<!-- 使用0.9.8版本替代最新版本 -->
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.9.8/dist/ffmpeg.min.js"></script>
 
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     const loading = document.getElementById('loading');
@@ -89,9 +91,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const timeline = document.getElementById('timeline');
 
     let mediaData = [];
+
     const ffmpeg = FFmpeg.createFFmpeg({
         log: true,
-        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.9.8/dist/ffmpeg-core.js',
+        mainName: 'main',
+        printErr: (data) => console.log(data),
+        print: (data) => console.log(data)
     });
 
     async function init() {
